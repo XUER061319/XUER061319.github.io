@@ -524,20 +524,57 @@ const CLOUD = {
   pollTimer: null,
   _json: null
 };
+/* ---- 云端状态指示灯（可见，便于判断同步是否真的通） ---- */
+let CLOUD_STATUS = 'sync';
+function ensureCloudBadge(){
+  let b = document.getElementById('cloudBadge');
+  if(!b){
+    b = document.createElement('div');
+    b.id = 'cloudBadge';
+    b.style.cssText = 'position:fixed;top:8px;right:8px;z-index:99999;display:flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;font-size:11px;font-weight:700;background:#FFF6E8;border:2px solid #F2D9B8;color:#5D3A26;box-shadow:0 2px 8px rgba(93,58,38,.12);cursor:pointer;user-select:none;font-family:inherit;';
+    b.title = '点击可立即重试同步';
+    b.addEventListener('click', function(){ cloudRetry(); });
+    document.body.appendChild(b);
+  }
+  return b;
+}
+function setCloudStatus(state, msg){
+  CLOUD_STATUS = state;
+  try{
+    const b = ensureCloudBadge();
+    const map = {
+      ok:   { dot:'#6B8E5A', text: msg || '云端已同步' },
+      sync: { dot:'#E89968', text: msg || '同步中…' },
+      off:  { dot:'#C0553E', text: msg || '云端连不上' }
+    };
+    const s = map[state] || map.sync;
+    b.innerHTML = '<span style="width:8px;height:8px;border-radius:50%;background:'+s.dot+';display:inline-block;flex:none;"></span><span>'+s.text+'</span>';
+  }catch(e){}
+}
+async function cloudRetry(){
+  setCloudStatus('sync','重试中…');
+  const remote = await cloudLoad();
+  if(remote){ setCloudStatus('ok','已连上云端'); }
+  else {
+    const r2 = await cloudPush();
+    setCloudStatus(r2 ? 'ok' : 'off', r2 ? '已连上云端' : '仍连不上（网络问题）');
+  }
+}
 function cloudHeaders(extra){
   return Object.assign({ 'apikey': CLOUD.key, 'Authorization':'Bearer '+CLOUD.key, 'Content-Type':'application/json' }, extra||{});
 }
 async function cloudLoad(){
   try{
     const r = await fetch(CLOUD.url+'/rest/v1/'+CLOUD.table+'?id=eq.'+CLOUD.rowId+'&select=data,updated_at', { headers: cloudHeaders() });
-    if(!r.ok) return null;
+    if(!r.ok){ setCloudStatus('off','云端 '+r.status); return null; }
     const arr = await r.json();
+    setCloudStatus('ok');
     if(Array.isArray(arr) && arr[0] && arr[0].data){
       CLOUD.lastRemoteAt = arr[0].updated_at ? new Date(arr[0].updated_at).getTime() : Date.now();
       return arr[0].data;
     }
     return null;
-  }catch(e){ console.warn('[cloud] load fail', e); return null; }
+  }catch(e){ console.warn('[cloud] load fail', e); setCloudStatus('off','网络不通'); return null; }
 }
 async function cloudPush(){
   const payload = { articles, tags, dims };
@@ -548,8 +585,10 @@ async function cloudPush(){
       headers: cloudHeaders({ 'Prefer':'resolution=merge-upsert' }),
       body: JSON.stringify({ id: CLOUD.rowId, data: payload, updated_at: now })
     });
-    if(!r.ok) console.warn('[cloud] push err', r.status);
-  }catch(e){ console.warn('[cloud] push fail', e); }
+    if(!r.ok){ console.warn('[cloud] push err', r.status); setCloudStatus('off','推送失败 '+r.status); return false; }
+    setCloudStatus('ok');
+    return true;
+  }catch(e){ console.warn('[cloud] push fail', e); setCloudStatus('off','网络不通'); return false; }
 }
 function schedulePush(){
   if(!CLOUD.ready) return;
@@ -1251,10 +1290,11 @@ function closeSidebar(){ document.getElementById('sidebar').classList.remove('op
 
 /* ============ Init ============ */
 async function initCloud(){
-  // 先用本地数据秒开，再异步拉云端（最多等 5s）
+  setCloudStatus('sync','连接云端…');
+  // 先用本地数据秒开，再异步拉云端（最多等 8s）
   const remote = await Promise.race([
     cloudLoad(),
-    new Promise(r => setTimeout(() => r(null), 5000))
+    new Promise(r => setTimeout(() => r(null), 8000))
   ]);
   if(remote && Array.isArray(remote.articles) && remote.articles.length>0){
     CLOUD.ready = false;
