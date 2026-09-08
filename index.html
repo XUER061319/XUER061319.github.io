@@ -1011,7 +1011,7 @@ function bindList(m){
       const a = articles.find(x=>x.id===full.dataset.full);
       if(a){
         full.innerHTML =
-          (a.review?`<h4>${IC.book}读后感</h4><div class="note">${esc(a.review)}</div>`:'') +
+          (a.review?`<div class="note">${esc(a.review)}</div>`:'') +
           (a.annotation?`<div class="anno"><b style="color:var(--primary-d);font-size:13px;">随手批注：</b><br>${esc(a.annotation)}</div>`:'');
         full.dataset.loaded = '1';
       }
