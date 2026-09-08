@@ -522,7 +522,9 @@ const CLOUD = {
   pushTimer: null,
   lastRemoteAt: 0,
   pollTimer: null,
-  _json: null
+  _json: null,
+  loadOk: null,   // 最近一次读取是否成功（null=还没试过）
+  pushOk: null    // 最近一次推送是否成功
 };
 /* ---- 云端状态指示灯（可见，便于判断同步是否真的通） ---- */
 let CLOUD_STATUS = 'sync';
@@ -566,29 +568,52 @@ function cloudHeaders(extra){
 async function cloudLoad(){
   try{
     const r = await fetch(CLOUD.url+'/rest/v1/'+CLOUD.table+'?id=eq.'+CLOUD.rowId+'&select=data,updated_at', { headers: cloudHeaders() });
-    if(!r.ok){ setCloudStatus('off','云端 '+r.status); return null; }
+    if(!r.ok){ CLOUD.loadOk=false; setCloudStatus('off','云端 '+r.status); return null; }
     const arr = await r.json();
-    setCloudStatus('ok');
+    CLOUD.loadOk = true;
+    // 读取成功也未必代表写入成功：若最近一次推送失败，仍保持红灯
+    if(CLOUD.pushOk === false) setCloudStatus('off','保存失败');
+    else setCloudStatus('ok');
     if(Array.isArray(arr) && arr[0] && arr[0].data){
       CLOUD.lastRemoteAt = arr[0].updated_at ? new Date(arr[0].updated_at).getTime() : Date.now();
       return arr[0].data;
     }
     return null;
-  }catch(e){ console.warn('[cloud] load fail', e); setCloudStatus('off','网络不通'); return null; }
+  }catch(e){ console.warn('[cloud] load fail', e); CLOUD.loadOk=false; setCloudStatus('off','网络不通'); return null; }
 }
 async function cloudPush(){
   const payload = { articles, tags, dims };
   const now = new Date().toISOString();
+  // 先尝试更新已有行(PATCH)，失败/无行再插入(POST + merge-duplicates)
   try{
-    const r = await fetch(CLOUD.url+'/rest/v1/'+CLOUD.table, {
-      method:'POST',
-      headers: cloudHeaders({ 'Prefer':'resolution=merge-upsert' }),
-      body: JSON.stringify({ id: CLOUD.rowId, data: payload, updated_at: now })
+    let r = await fetch(CLOUD.url+'/rest/v1/'+CLOUD.table+'?id=eq.'+CLOUD.rowId, {
+      method:'PATCH',
+      headers: cloudHeaders(),
+      body: JSON.stringify({ data: payload, updated_at: now })
     });
-    if(!r.ok){ console.warn('[cloud] push err', r.status); setCloudStatus('off','推送失败 '+r.status); return false; }
+    if(!r.ok){
+      r = await fetch(CLOUD.url+'/rest/v1/'+CLOUD.table, {
+        method:'POST',
+        headers: cloudHeaders({ 'Prefer':'resolution=merge-duplicates' }),
+        body: JSON.stringify({ id: CLOUD.rowId, data: payload, updated_at: now })
+      });
+    }
+    if(!r.ok){
+      console.warn('[cloud] push err', r.status);
+      CLOUD.pushOk = false;
+      setCloudStatus('off','保存失败 '+r.status);
+      return false;
+    }
+    CLOUD.pushOk = true;
+    CLOUD._json = JSON.stringify(payload);
     setCloudStatus('ok');
     return true;
-  }catch(e){ console.warn('[cloud] push fail', e); setCloudStatus('off','网络不通'); return false; }
+  }catch(e){
+    console.warn('[cloud] push fail', e);
+    CLOUD.pushOk = false;
+    setCloudStatus('off','网络不通');
+    return false;
+  }
 }
 function schedulePush(){
   if(!CLOUD.ready) return;
@@ -1305,8 +1330,9 @@ async function initCloud(){
     saveA(); saveT(); saveD();
     render();
     CLOUD.ready = true;
-  } else if(articles.length>0){
-    // 本地有数据但云端空：把本地推上去做种
+  } else if(articles.length>0 && CLOUD.loadOk===true){
+    // 仅在"确认连得上云端 + 云端确实为空"时才用本地数据做种。
+    // 若只是网络抖动(loadOk=false)，绝不推本地数据，避免把内嵌示例覆盖掉云端真实数据。
     cloudPush();
     CLOUD._json = JSON.stringify({articles, tags, dims});
     CLOUD.ready = true;
