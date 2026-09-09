@@ -920,6 +920,11 @@ function renderHome(m){
 }
 
 function renderList(m, title, list){
+  // 置顶的文章在任何分类（已读/正在读/未读/标签/自定义/不喜欢/搜索）里都排最前，其余保持原顺序
+  {
+    const _src = Array.isArray(list) ? list : [];
+    list = _src.filter(a=>a.pinned).concat(_src.filter(a=>!a.pinned));
+  }
   let html=`<div class="list-head"><h2>${esc(title)}</h2>`;
   const fts=[];
   if(ui.status) fts.push(`<div class="ftag">${STATUS[ui.status].t}<button data-fclear="status">${'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'}</button></div>`);
