@@ -169,6 +169,8 @@
     display:flex; align-items:stretch; overflow:hidden; transition:box-shadow .2s;
   }
   .card.dragging{opacity:.4;}
+  /* 手机长按拖拽中的卡片 */
+  .card.t-dragging{opacity:.94; box-shadow:0 12px 28px rgba(120,70,30,.28); transition:none; border-color:var(--primary);}
   .card.drop-top{box-shadow:0 -3px 0 var(--primary) inset;}
   .card.drop-bottom{box-shadow:0 3px 0 var(--primary) inset;}
   .drag-h{
@@ -179,6 +181,12 @@
   .card-main{flex:1; min-width:0; padding:14px 16px; cursor:pointer;}
   .card-head{display:flex; align-items:center; gap:10px; margin-bottom:8px;}
   .card-head h3{margin:0; font-size:16px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  /* 置顶 / 不喜欢 标记：只在已设置时显示，非交互按钮，防误点 */
+  .mark{flex:0 0 auto; display:inline-flex; align-items:center; justify-content:center; width:20px; height:20px; pointer-events:none;}
+  .mark svg{width:15px; height:15px;}
+  .mark.pin{color:var(--primary-d);}
+  .mark.dis{color:#C95252;}
+  .card.is-pinned{box-shadow:0 2px 0 var(--primary) inset, 0 2px 10px rgba(200,120,60,.10);}
   .badge{flex:0 0 auto; font-size:12px; font-weight:700; padding:3px 10px; border-radius:20px;}
   .badge.read{background:#F5E6D5; color:var(--read);}
   .badge.reading{background:#FDF1DF; color:var(--reading);}
@@ -393,6 +401,10 @@
           <label data-page-node-id="fb5mRQEUhVKlO7OZyNdYRT" class="unread"><input data-page-node-id="oBwSlFKhCGqEt1lcQT50ly" checked name="status" type="radio" value="unread"><span data-page-node-id="WIHQ1Po9Qy0Ib1xs6mqxCc"><!--pnid:j6kcRXajM4uolgyvV6Cb2K-->未读</span></label>
         </div>
       </div>
+      <div class="field" style="align-items:center; background:#FFF6E8; border:1px solid #F2D9B8; border-radius:12px; flex-direction:row; gap:10px; margin-bottom:2px; padding:10px 14px">
+        <input id="fPinned" type="checkbox" style="accent-color:#C56F3E; flex:0 0 auto; height:20px; width:20px">
+        <label for="fPinned" style="color:#C56F3E; font-weight:600; margin:0">置顶这篇文章（排在列表最前）</label>
+      </div>
       <div data-page-node-id="RM7gp05Mfb4fFdZlEjCfp3" class="field" style="align-items:center; background:#FFF6F8; border:1px solid #FFE0E8; border-radius:12px; flex-direction:row; gap:10px; margin-bottom:2px; padding:10px 14px">
         <input data-page-node-id="Dw6SKEawQPt0ROnk9RAc6B" id="fDislike" type="checkbox" style="accent-color:#C95252; flex:0 0 auto; height:20px; width:20px">
         <label data-page-node-id="sDhdsqqBw5BFGT2g5cwTq6" for="fDislike" style="color:#c0506b; font-weight:600; margin:0"><!--pnid:ZE6JiooDt1l21uFIZJoGIR-->标记为「不喜欢」（看过的但不想留着）</label>
@@ -506,7 +518,8 @@ const IC = {
   unread:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>',
   reading:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6v6l4 2"/></svg>',
   gear:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
-  dislike:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.7a2 2 0 0 0-2 1.7l-1 6A2 2 0 0 0 4.6 13H10z"/><path d="M10 3h9a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-9"/></svg>'
+  dislike:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.7a2 2 0 0 0-2 1.7l-1 6A2 2 0 0 0 4.6 13H10z"/><path d="M10 3h9a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-9"/></svg>',
+  pin:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 1 1 0 0 0 0-2H8a1 1 0 0 0 0 2 1 1 0 0 1 1 1z"/></svg>'
 };
 
 /* ============ State ============ */
@@ -936,23 +949,24 @@ function cardHTML(a, drag){
   // 全文留空占位，用户点开时才按需生成（懒渲染）
   const full = hasFull ? `<div class="full" data-full="${a.id}" style="display:none"></div>` : '';
   const dragH = drag?`<div class="drag-h" title="拖动排序">${IC.drag}</div>`:'';
+  // 置顶/不喜欢：只在「已设置」时才显示标记，不放操作区，避免误点
+  const marks = (a.pinned?`<span class="mark pin" title="已置顶">${IC.pin}</span>`:'')
+              + (a.disliked?`<span class="mark dis" title="已标记不喜欢">${IC.dislike}</span>`:'');
   const acts = drag
     ? `<div class="card-acts">
-        <button class="dk ${a.disliked?'on':''}" data-dislike="${a.id}" title="标记为不喜欢">${IC.dislike}</button>
         <button class="mv" data-mv="up" data-id="${a.id}" title="上移">${IC.up}</button>
         <button class="mv" data-mv="down" data-id="${a.id}" title="下移">${IC.down}</button>
         <button data-edit="${a.id}" title="编辑">${IC.edit}</button>
         <button class="del" data-del="${a.id}" title="删除">${IC.trash}</button>
       </div>`
     : `<div class="card-acts">
-        <button class="dk ${a.disliked?'on':''}" data-dislike="${a.id}" title="标记为不喜欢">${IC.dislike}</button>
         <button data-edit="${a.id}" title="编辑">${IC.edit}</button>
         <button class="del" data-del="${a.id}" title="删除">${IC.trash}</button>
       </div>`;
-  return `<div class="card" ${drag?'draggable="true"':''} data-id="${a.id}">
+  return `<div class="card ${a.pinned?'is-pinned':''}" ${drag?'draggable="true"':''} data-id="${a.id}">
     ${dragH}
     <div class="card-main" data-toggle="${a.id}">
-      <div class="card-head"><span class="badge ${st.c}">${st.t}</span><h3>${esc(a.title)}</h3></div>
+      <div class="card-head"><span class="badge ${st.c}">${st.t}</span><h3>${esc(a.title)}</h3>${marks}</div>
       ${chips?`<div class="chips">${chips}</div>`:'<div style="height:4px"></div>'}
       <div class="preview">${preview}</div>
       ${full}
@@ -972,14 +986,17 @@ const SORTS=[
 ];
 function sortList(list){
   const s=ui.sort||'order'; const arr=list.slice();
-  if(s==='order') return arr;
-  if(s==='title') arr.sort((a,b)=>(a.title||'').localeCompare(b.title||'','zh'));
-  else if(s==='reviewDesc') arr.sort((a,b)=>(b.review||'').length-(a.review||'').length);
-  else if(s==='reviewAsc') arr.sort((a,b)=>(a.review||'').length-(b.review||'').length);
-  else if(s==='annoDesc') arr.sort((a,b)=>(b.annotation||'').length-(a.annotation||'').length);
-  else if(s==='timeDesc') arr.sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
-  else if(s==='status'){ const o={unread:0,reading:1,read:2}; arr.sort((a,b)=>(o[a.status]??3)-(o[b.status]??3)); }
-  return arr;
+  if(s!=='order'){
+    if(s==='title') arr.sort((a,b)=>(a.title||'').localeCompare(b.title||'','zh'));
+    else if(s==='reviewDesc') arr.sort((a,b)=>(b.review||'').length-(a.review||'').length);
+    else if(s==='reviewAsc') arr.sort((a,b)=>(a.review||'').length-(b.review||'').length);
+    else if(s==='annoDesc') arr.sort((a,b)=>(b.annotation||'').length-(a.annotation||'').length);
+    else if(s==='timeDesc') arr.sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+    else if(s==='status'){ const o={unread:0,reading:1,read:2}; arr.sort((a,b)=>(o[a.status]??3)-(o[b.status]??3)); }
+  }
+  // 置顶的文章永远排最前（保持它们内部的相对顺序），其余维持当前排序
+  const pin=arr.filter(a=>a.pinned), rest=arr.filter(a=>!a.pinned);
+  return pin.concat(rest);
 }
 function renderAllList(m){
   let html=`<div class="list-head"><h2>全部文章</h2></div>`;
@@ -994,7 +1011,7 @@ function renderAllList(m){
     html+=`<div class="cards">`;
     list.forEach(a=>{ html+=cardHTML(a, drag); });
     html+=`</div>`;
-    html+=`<div style="text-align:center;color:var(--muted);font-size:12px;margin-top:12px;">共 ${list.length} 篇${drag?' · 拖拽卡片左侧或点 ↑↓ 可调整顺序，调整后即成为新的「导入顺序」':''}</div>`;
+    html+=`<div style="text-align:center;color:var(--muted);font-size:12px;margin-top:12px;">共 ${list.length} 篇${drag?' · 长按卡片可拖动排序，或点 ↑↓ 微调':''}</div>`;
   }
   m.innerHTML=html;
   const sel=m.querySelector('#sortSel');
@@ -1036,6 +1053,71 @@ function bindList(m){
     card.addEventListener('dragover',e=>{ e.preventDefault(); const r=card.getBoundingClientRect(); ui.dropPos=(e.clientY<r.top+r.height/2)?'before':'after'; card.classList.remove('drop-top','drop-bottom'); card.classList.add(ui.dropPos==='before'?'drop-top':'drop-bottom'); });
     card.addEventListener('dragleave',()=>card.classList.remove('drop-top','drop-bottom'));
     card.addEventListener('drop',e=>{ e.preventDefault(); card.classList.remove('drop-top','drop-bottom'); if(ui.dragId&&ui.dragId!==card.dataset.id) moveArticle(ui.dragId, card.dataset.id, ui.dropPos); });
+  });
+  // 手机：长按卡片后上下拖动排序（HTML5 drag 在移动端不触发，必须自己实现）
+  enableTouchDrag(m);
+}
+
+/* ============ 手机长按拖拽排序 ============ */
+function enableTouchDrag(m){
+  const cards=[...m.querySelectorAll('.card')];
+  if(cards.length<2) return;
+  const LONG_PRESS=380;
+  let pressTimer=null, dragging=false, dragEl=null, startY=0;
+
+  function clearMarks(){ cards.forEach(c=>c.classList.remove('drop-top','drop-bottom')); }
+  function finish(commit){
+    if(pressTimer){ clearTimeout(pressTimer); pressTimer=null; }
+    let target=null, pos='before';
+    if(commit){
+      for(const c of cards){
+        if(c===dragEl) continue;
+        if(c.classList.contains('drop-top')){ target=c; pos='before'; break; }
+        if(c.classList.contains('drop-bottom')){ target=c; pos='after'; break; }
+      }
+    }
+    const srcId = dragEl?dragEl.dataset.id:null;
+    if(dragEl){
+      dragEl.classList.remove('t-dragging');
+      dragEl.style.transform=''; dragEl.style.zIndex=''; dragEl.style.touchAction='';
+    }
+    clearMarks();
+    dragging=false; dragEl=null;
+    if(commit && target && srcId && target.dataset.id!==srcId) moveArticle(srcId, pos, target.dataset.id);
+    else if(commit && srcId) render();
+  }
+
+  cards.forEach(card=>{
+    card.addEventListener('touchstart', e=>{
+      if(e.touches.length!==1) return;
+      if(e.target.closest('.card-acts')) return;      // 右侧操作按钮不触发拖拽
+      const t=e.touches[0]; startY=t.clientY;
+      pressTimer=setTimeout(()=>{
+        dragging=true; dragEl=card;
+        card.classList.add('t-dragging');
+        card.style.zIndex='99';
+        card.style.touchAction='none';                 // 拖拽中禁止页面滚动
+        try{ if(navigator.vibrate) navigator.vibrate(15); }catch(_){}
+      }, LONG_PRESS);
+    }, {passive:true});
+
+    card.addEventListener('touchmove', e=>{
+      if(!dragging || !dragEl) return;
+      const t=e.touches[0];
+      const dy=t.clientY-startY;
+      dragEl.style.transform='translateY('+dy+'px) scale(1.02)';
+      if(e.cancelable) e.preventDefault();
+      const y=t.clientY;
+      clearMarks();
+      for(const c of cards){
+        if(c===dragEl) continue;
+        const r=c.getBoundingClientRect();
+        if(y>r.top && y<r.bottom){ c.classList.add(y < r.top+r.height/2 ? 'drop-top':'drop-bottom'); break; }
+      }
+    }, {passive:false});
+
+    card.addEventListener('touchend', ()=>finish(dragging));
+    card.addEventListener('touchcancel', ()=>finish(false));
   });
 }
 
@@ -1097,6 +1179,7 @@ function openEdit(id){
   document.getElementById('fReview').value=a.review||'';
   document.getElementById('fAnno').value=a.annotation||'';
   document.getElementById('fDislike').checked = !!a.disliked;
+  document.getElementById('fPinned').checked = !!a.pinned;
   renderTagPick(a.tags||[]);
   renderDimFields((a.dims||{}));
   document.getElementById('editOverlay').classList.add('show');
@@ -1133,12 +1216,14 @@ function saveEdit(){
   dims.forEach(d=>{ const r=document.querySelector('input[name="dim_'+d.id+'"]:checked'); if(r && r.value) pickedDims[d.id]=r.value; });
   if(!title){ toast('请填写标题'); return; }
   const isNew=!ui.editId;
+  const isDis=document.getElementById('fDislike').checked;
+  const isPin=document.getElementById('fPinned').checked;
   if(isNew){
-    articles.push({id:uid(), title, status, tags:picked, dims:pickedDims, disliked:document.getElementById('fDislike').checked, review, annotation, order:articles.length, isSample:false, createdAt:Date.now()});
+    articles.push({id:uid(), title, status, tags:picked, dims:pickedDims, disliked:isDis, pinned:isPin, review, annotation, order:articles.length, isSample:false, createdAt:Date.now()});
     toast('已添加');
   } else {
     const a=articles.find(x=>x.id===ui.editId);
-    Object.assign(a,{title,status,tags:picked,dims:pickedDims,disliked:document.getElementById('fDislike').checked,review,annotation});
+    Object.assign(a,{title,status,tags:picked,dims:pickedDims,disliked:isDis,pinned:isPin,review,annotation});
     toast('已保存');
   }
   saveA(); closeEdit(); render();
