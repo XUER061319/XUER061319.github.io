@@ -466,6 +466,17 @@
     <div data-page-node-id="CTcOt2JwsUVfYSB9Epsn0V" class="modal-head"><h2 data-page-node-id="xgTGtOhWAIbxwPQxFwpbID"><!--pnid:BnR3LponVPlFMCxOSx50Z7-->数据备份</h2><button data-page-node-id="eL8WXjqWxHV2fBuapjfcE5" class="x" id="bkClose"><svg data-page-node-id="iFV9Q8OqKd9lIWjgDBfVDU" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="2" viewBox="0 0 24 24"><line data-page-node-id="IeQ0qzSp7EVYqiZQdO8wC8" x1="18" x2="6" y1="6" y2="18"/><line data-page-node-id="cUFD05hVnI6XnyukSBO0rP" x1="6" x2="18" y1="6" y2="18"/></svg></button></div>
     <div data-page-node-id="RKhyNHVaoNAXgroUP4Z1tb" class="modal-body">
       <p data-page-node-id="hQo5p1tXym9QWrQJh4NLwI" style="color:var(--muted); font-size:13px; margin:0 0 14px"><!--pnid:peAmD6iRz7h8tzX9x2D28c-->数据保存在本设备浏览器中。换手机/平板请用「导出」备份，再用「导入」恢复，即可迁移全部文章与标签。</p>
+      <div style="border:2px solid var(--border); border-radius:14px; padding:12px 14px; margin-bottom:14px; background:#FFF6E8">
+        <div style="font-weight:800; font-size:14px; margin-bottom:2px">多设备同步（GitHub）</div>
+        <div style="color:var(--muted); font-size:12px; line-height:1.6; margin-bottom:10px">每台设备填一次，之后手机和电脑自动同步。Token 只保存在本机，不会上传到任何地方。</div>
+        <input id="ghRepo" placeholder="数据仓库名，如：yongwudao-data" type="text" style="width:100%; box-sizing:border-box; margin-bottom:8px; padding:10px 12px; border-radius:10px; border:1px solid var(--border); font-size:13px">
+        <input id="ghToken" placeholder="GitHub Token（ghp_ 或 github_pat_ 开头）" type="password" style="width:100%; box-sizing:border-box; margin-bottom:10px; padding:10px 12px; border-radius:10px; border:1px solid var(--border); font-size:13px">
+        <div style="display:flex; gap:8px">
+          <button id="ghSave" type="button" style="flex:1; padding:11px; border-radius:11px; background:var(--primary); color:#fff; font-weight:800; font-size:13px; border:none">保存并连接</button>
+          <button id="ghClear" type="button" style="padding:11px 16px; border-radius:11px; background:#F5DDDD; color:#C95252; font-weight:700; font-size:13px; border:none">断开</button>
+        </div>
+        <div id="ghTip" style="font-size:12px; margin-top:8px; color:var(--muted); line-height:1.6"></div>
+      </div>
       <div data-page-node-id="h2ff8URpq0m5QwUKaGA5Ok" style="display:flex; flex-direction:column; gap:10px">
         <button data-page-node-id="3pS8rKbPnbPAnTP3F3pkwj" class="btn-ghost" id="bkExport" style="background:#FBE0C8; border-radius:12px; color:#C56F3E; font-weight:700; padding:14px 16px; text-align:left"><!--pnid:xSbMoiztvBI8U4JXuh1i9J-->导出 JSON 备份</button>
         <button data-page-node-id="URg50HVitj1KLZiPivvQ7k" class="btn-ghost" id="bkImport" style="background:#FBE0C8; border-radius:12px; color:#C56F3E; font-weight:700; padding:14px 16px; text-align:left"><!--pnid:J6RVr9wU4iklRX6sDy90KW-->导入恢复（JSON）</button>
@@ -525,12 +536,15 @@ const IC = {
 /* ============ State ============ */
 const LS = { a:'wb_yongwudao_articles', t:'wb_yongwudao_tags', d:'wb_yongwudao_dims', hint:'wb_yongwudao_backuphint' };
 
-/* ============ Cloud Sync (Supabase, fetch-only / 无外部脚本依赖) ============ */
+/* ============ Cloud Sync (GitHub 仓库, fetch-only / 无外部脚本依赖) ============ */
+/* 用用户自己的 GitHub 仓库存数据 —— 永不因不活跃被暂停。
+   Token 只存在本机 localStorage，不写进页面代码、不上传。 */
 const CLOUD = {
-  url: 'https://ibmsnjmbmivixdnplsbu.supabase.co',
-  key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlibXNuam1ibWl2aXhkbnBsc2J1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg4NzI5NDEsImV4cCI6MjEwNDQ0ODk0MX0.-i5bR24azpQZFulBlpiJSqniHz8rDEGUet22F3xDoLI',
-  table: 'yongwudao_state',
-  rowId: 'default',
+  owner: 'XUER061319',   // GitHub 用户名
+  repo: '',              // 数据仓库名，用户在「数据备份」里填（如 yongwudao-data）
+  path: 'data.json',     // 仓库里存数据的文件
+  token: '',             // 用户填的 GitHub Token
+  sha: null,             // 远端文件 sha，更新时必需
   ready: false,
   pushTimer: null,
   lastRemoteAt: 0,
@@ -539,6 +553,34 @@ const CLOUD = {
   loadOk: null,   // 最近一次读取是否成功（null=还没试过）
   pushOk: null    // 最近一次推送是否成功
 };
+const GH_LS = { token:'wb_yongwudao_gh_token', repo:'wb_yongwudao_gh_repo' };
+function ghConfigured(){
+  try{
+    CLOUD.token = (localStorage.getItem(GH_LS.token)||'').trim();
+    CLOUD.repo  = (localStorage.getItem(GH_LS.repo)||'').trim();
+  }catch(e){}
+  return !!(CLOUD.token && CLOUD.repo);
+}
+function ghSaveConfig(token, repo){
+  try{ localStorage.setItem(GH_LS.token,(token||'').trim()); localStorage.setItem(GH_LS.repo,(repo||'').trim()); }catch(e){}
+  ghConfigured();
+}
+function ghApi(){ return 'https://api.github.com/repos/'+CLOUD.owner+'/'+CLOUD.repo+'/contents/'+CLOUD.path; }
+function ghCommitsApi(){ return 'https://api.github.com/repos/'+CLOUD.owner+'/'+CLOUD.repo+'/commits?path='+CLOUD.path+'&per_page=1'; }
+function ghHeaders(){ return { 'Authorization':'Bearer '+CLOUD.token, 'Accept':'application/vnd.github+json', 'Content-Type':'application/json' }; }
+function b64enc(s){ return btoa(unescape(encodeURIComponent(s))); }   // UTF-8 安全的 base64
+function b64dec(b){ return decodeURIComponent(escape(atob(b))); }
+function ghRefresh(){
+  try{
+    const has = ghConfigured();
+    const rEl=document.getElementById('ghRepo'), tEl=document.getElementById('ghToken'), tip=document.getElementById('ghTip');
+    if(rEl) rEl.value = CLOUD.repo || '';
+    if(tEl) tEl.value = CLOUD.token || '';
+    if(tip) tip.textContent = has
+      ? ('已连接仓库：' + CLOUD.repo + '。右上角指示灯：绿灯=同步正常。')
+      : '还没设置。需先在 GitHub 建一个仓库（建议私有），再生成一个有读写权限的 Token 填进来。';
+  }catch(e){}
+}
 /* ---- 云端状态指示灯（可见，便于判断同步是否真的通） ---- */
 let CLOUD_STATUS = 'sync';
 function ensureCloudBadge(){
@@ -575,55 +617,55 @@ async function cloudRetry(){
     setCloudStatus(r2 ? 'ok' : 'off', r2 ? '已连上云端' : '仍连不上（网络问题）');
   }
 }
-function cloudHeaders(extra){
-  return Object.assign({ 'apikey': CLOUD.key, 'Authorization':'Bearer '+CLOUD.key, 'Content-Type':'application/json' }, extra||{});
-}
 async function cloudLoad(){
+  if(!ghConfigured()){ CLOUD.loadOk=false; setCloudStatus('off','未设置同步'); return null; }
   try{
-    const r = await fetch(CLOUD.url+'/rest/v1/'+CLOUD.table+'?id=eq.'+CLOUD.rowId+'&select=data,updated_at', { headers: cloudHeaders() });
+    const r = await fetch(ghApi()+'?t='+Date.now(), { headers: ghHeaders() });
+    if(r.status===404){ CLOUD.loadOk=true; CLOUD.sha=null; setCloudStatus('ok'); return null; } // 云端还没有数据文件
     if(!r.ok){ CLOUD.loadOk=false; setCloudStatus('off','云端 '+r.status); return null; }
-    const arr = await r.json();
+    const j = await r.json();
+    CLOUD.sha = j.sha || null;
+    const data = JSON.parse(b64dec((j.content||'').replace(/\s/g,'')));
     CLOUD.loadOk = true;
     // 读取成功也未必代表写入成功：若最近一次推送失败，仍保持红灯
     if(CLOUD.pushOk === false) setCloudStatus('off','保存失败');
     else setCloudStatus('ok');
-    if(Array.isArray(arr) && arr[0] && arr[0].data){
-      CLOUD.lastRemoteAt = arr[0].updated_at ? new Date(arr[0].updated_at).getTime() : Date.now();
-      return arr[0].data;
+    if(data && Array.isArray(data.articles)){
+      CLOUD.lastRemoteAt = data.__t || Date.now();
+      return data;
     }
     return null;
-  }catch(e){ console.warn('[cloud] load fail', e); CLOUD.loadOk=false; setCloudStatus('off','网络不通'); return null; }
+  }catch(e){ console.warn('[gh] load fail', e); CLOUD.loadOk=false; setCloudStatus('off','网络不通'); return null; }
 }
 async function cloudPush(){
-  const payload = { articles, tags, dims };
-  const now = new Date().toISOString();
-  // 先尝试更新已有行(PATCH)，失败/无行再插入(POST + merge-duplicates)
+  if(!ghConfigured()) return false;
+  const payload = { articles, tags, dims, __t: Date.now() };
   try{
-    let r = await fetch(CLOUD.url+'/rest/v1/'+CLOUD.table+'?id=eq.'+CLOUD.rowId, {
-      method:'PATCH',
-      headers: cloudHeaders(),
-      body: JSON.stringify({ data: payload, updated_at: now })
-    });
-    if(!r.ok){
-      r = await fetch(CLOUD.url+'/rest/v1/'+CLOUD.table, {
-        method:'POST',
-        headers: cloudHeaders({ 'Prefer':'resolution=merge-duplicates' }),
-        body: JSON.stringify({ id: CLOUD.rowId, data: payload, updated_at: now })
-      });
+    const body = { message:'永无岛同步 '+new Date().toLocaleString('zh-CN'), content: b64enc(JSON.stringify(payload)) };
+    if(CLOUD.sha) body.sha = CLOUD.sha;
+    let r = await fetch(ghApi(), { method:'PUT', headers: ghHeaders(), body: JSON.stringify(body) });
+    if(r.status===409 || r.status===422){
+      // sha 过期（别的设备先改了）→ 重新取 sha 再推一次
+      const g = await fetch(ghApi()+'?t='+Date.now(), { headers: ghHeaders() });
+      if(g.ok){ const j=await g.json(); CLOUD.sha=j.sha||null; body.sha=CLOUD.sha; }
+      else { CLOUD.sha=null; delete body.sha; }
+      r = await fetch(ghApi(), { method:'PUT', headers: ghHeaders(), body: JSON.stringify(body) });
     }
     if(!r.ok){
-      console.warn('[cloud] push err', r.status);
+      console.warn('[gh] push err', r.status);
       CLOUD.pushOk = false;
       setCloudStatus('off','保存失败 '+r.status);
       return false;
     }
+    const j = await r.json();
+    if(j && j.content && j.content.sha) CLOUD.sha = j.content.sha;
     CLOUD.pushOk = true;
-    CLOUD._json = JSON.stringify(payload);
-    CLOUD.lastRemoteAt = new Date(now).getTime(); // 自己推的就不用下次再拉一遍
+    CLOUD._json = JSON.stringify({articles, tags, dims});
+    CLOUD.lastRemoteAt = payload.__t; // 自己推的就不用下次再拉一遍
     setCloudStatus('ok');
     return true;
   }catch(e){
-    console.warn('[cloud] push fail', e);
+    console.warn('[gh] push fail', e);
     CLOUD.pushOk = false;
     setCloudStatus('off','网络不通');
     return false;
@@ -636,11 +678,15 @@ function schedulePush(){
 }
 // 轻量探测：只取 updated_at（几十字节），避免每次轮询都下载整份数据把手机拖垮
 async function cloudPeek(){
+  // 轻量探活：只查 data.json 的最后一次提交时间，变了才拉全量
+  if(!ghConfigured()) return null;
   try{
-    const r = await fetch(CLOUD.url+'/rest/v1/'+CLOUD.table+'?id=eq.'+CLOUD.rowId+'&select=updated_at', { headers: cloudHeaders() });
+    const r = await fetch(ghCommitsApi(), { headers: ghHeaders() });
     if(!r.ok) return null;
     const arr = await r.json();
-    if(Array.isArray(arr) && arr[0] && arr[0].updated_at) return new Date(arr[0].updated_at).getTime();
+    if(Array.isArray(arr) && arr[0] && arr[0].commit && arr[0].commit.committer){
+      return new Date(arr[0].commit.committer.date).getTime();
+    }
     return null;
   }catch(e){ return null; }
 }
@@ -1387,7 +1433,27 @@ function bindUI(){
   });
   // sidebar footer
   document.querySelector('[data-act="import"]').onclick=()=>{ document.getElementById('impOverlay').classList.add('show'); closeSidebar(); };
-  document.querySelector('[data-act="backup"]').onclick=()=>{ document.getElementById('bkOverlay').classList.add('show'); closeSidebar(); };
+  document.querySelector('[data-act="backup"]').onclick=()=>{ document.getElementById('bkOverlay').classList.add('show'); closeSidebar(); ghRefresh(); };
+  // GitHub 同步设置
+  document.getElementById('ghSave').onclick=async ()=>{
+    const tk=(document.getElementById('ghToken').value||'').trim();
+    const rp=(document.getElementById('ghRepo').value||'').trim();
+    const tip=document.getElementById('ghTip');
+    if(!tk||!rp){ tip.textContent='仓库名和 Token 都要填'; return; }
+    ghSaveConfig(tk, rp);
+    tip.textContent='正在测试并上传…';
+    const okp = await cloudPush();
+    tip.textContent = okp
+      ? ('✅ 连接成功，数据已同步到仓库 ' + CLOUD.repo + '。右上角绿灯即正常。')
+      : '❌ 连接失败。请检查：仓库是否存在、Token 是否正确、Token 是否有 Contents 读写权限。';
+    if(okp) render();
+  };
+  document.getElementById('ghClear').onclick=()=>{
+    try{ localStorage.removeItem(GH_LS.token); localStorage.removeItem(GH_LS.repo); }catch(e){}
+    CLOUD.token=''; CLOUD.repo=''; CLOUD.sha=null; CLOUD.ready=false;
+    setCloudStatus('off','未设置同步');
+    ghRefresh();
+  };
   // top
   document.getElementById('btnAdd').onclick=()=>openEdit(null);
   document.getElementById('search').oninput=e=>{ ui.q=e.target.value.trim(); render(); };
